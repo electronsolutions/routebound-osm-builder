@@ -90,7 +90,7 @@ jobs:
           OUTPUT_DIR: out
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl jq
+          sudo apt-get install -y curl jq osmium-tool
           bash scripts/build-osrm-shard.sh
           echo "Input and output sizes:"
           du -sh "${RUNNER_TEMP}/routebound-us-california__us-nevada" out 2>/dev/null || true

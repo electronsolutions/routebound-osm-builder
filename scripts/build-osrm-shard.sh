@@ -39,7 +39,11 @@ if [ "${#PBF_FILES[@]}" -eq 1 ]; then
 else
   args=()
   for file in "${PBF_FILES[@]}"; do args+=(/data/"$(basename "$file")"); done
-  docker run --rm -v "$WORK_DIR:/data" "$OSMIUM_IMAGE" osmium merge "${args[@]}" -o /data/input.osm.pbf
+  if command -v osmium >/dev/null 2>&1; then
+    osmium merge "${PBF_FILES[@]}" -o "$WORK_DIR/input.osm.pbf"
+  else
+    docker run --rm -v "$WORK_DIR:/data" "$OSMIUM_IMAGE" osmium merge "${args[@]}" -o /data/input.osm.pbf
+  fi
 fi
 curl --fail --location --retry 3 --output "$WORK_DIR/foot.lua" "$FOOT_URL"
 docker pull "$IMAGE" >/dev/null
@@ -73,4 +77,8 @@ build_profile() {
 build_profile walking "$((5000 + RANDOM % 500))" /data/foot.lua
 build_profile driving "$((5500 + RANDOM % 500))" /opt/car.lua
 guard_disk
+echo "Remote build metrics:"
+du -sh "$WORK_DIR" "$OUTPUT_DIR" 2>/dev/null || true
+df -h "$WORK_DIR"
+free -h || true
 rm -rf "$WORK_DIR"

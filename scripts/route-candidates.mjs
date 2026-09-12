@@ -64,7 +64,7 @@ async function route(origin, destination) {
       const body = await response.json();
       const routed = body.routes?.[0];
       if (!routed || body.code !== "Ok" || !Number.isFinite(routed.distance) || !routed.geometry) return null;
-      return routed;
+      return { routed, waypoints: body.waypoints ?? [] };
     } catch {
       if (attempt === 2) return null;
     }
@@ -74,8 +74,14 @@ async function route(origin, destination) {
 
 const lines = [];
 for (const { origin, destination } of pairs.values()) {
-  const routed = await route(origin, destination);
-  if (!routed) continue;
+  const routedResult = await route(origin, destination);
+  if (!routedResult) continue;
+  const { routed, waypoints } = routedResult;
+  const [originWaypoint, destinationWaypoint] = waypoints;
+  const snap = (waypoint, location) => {
+    const [longitude, latitude] = waypoint?.location ?? [location.longitude, location.latitude];
+    return { latitude, longitude, name: waypoint?.name ?? location.name };
+  };
   lines.push(JSON.stringify({
     id: profile + ":" + origin.id + ":" + destination.id,
     originLocationId: origin.id,
@@ -83,7 +89,10 @@ for (const { origin, destination } of pairs.values()) {
     profile,
     routedDistanceMiles: Number((routed.distance / 1609.344).toFixed(3)),
     routeGeometry: routed.geometry,
-    accessRules: JSON.stringify({ profile, engine: "osrm", independentProfileRun: true }),
+    accessRules: JSON.stringify({ profile, engine: "osrm", independentProfileRun: true, source: "OpenStreetMap" }),
+    originSnap: snap(originWaypoint, origin),
+    destinationSnap: snap(destinationWaypoint, destination),
+    profileRunId: routingVersion + ":" + profile,
     corridorLabel: "OpenStreetMap routed city connection",
     routeSource: "osm",
     osmExtractDate: extractDate,
