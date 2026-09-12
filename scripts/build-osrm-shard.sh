@@ -74,4 +74,3 @@ build_profile walking "$((5000 + RANDOM % 500))" /data/foot.lua
 build_profile driving "$((5500 + RANDOM % 500))" /opt/car.lua
 guard_disk
 rm -rf "$WORK_DIR"
-
