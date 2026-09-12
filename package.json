@@ -1,0 +1,10 @@
+{
+  "name": "routebound-osm-builder",
+  "private": false,
+  "type": "module",
+  "scripts": {
+    "prepare-input": "node scripts/prepare-city-input.mjs",
+    "stitch": "node scripts/stitch-routebound.mjs"
+  }
+}
+

@@ -1,0 +1,13 @@
+work/
+out/
+reports/
+*.osm
+*.osm.pbf
+*.osrm
+*.osrm.*
+*.gph
+*.tar
+*.sqlite
+*.mbtiles
+*.zip
+

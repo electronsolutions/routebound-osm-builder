@@ -1,0 +1,104 @@
+name: Test representative Routebound OSM shards
+
+on:
+  push:
+    paths:
+      - ".github/workflows/test-representative-shards.yml"
+      - "scripts/**"
+      - "input/routebound-locations.json"
+
+permissions:
+  contents: read
+
+env:
+  OSM_EXTRACT_DATE: current-Geofabrik-extract
+  ROUTING_VERSION: osrm-representative-${{ github.run_id }}
+  OSRM_IMAGE: ghcr.io/project-osrm/osrm-backend:latest
+  OSMIUM_IMAGE: ghcr.io/osmcode/osmium-tool:latest
+
+jobs:
+  test-small-region:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate public location input
+        run: node -e "const x=require('./input/routebound-locations.json'); if (x.length !== 1283) process.exit(1);"
+      - name: Build independent Walking and Driving profiles
+        env:
+          JOB_ID: us-rhode-island
+          PBF_URLS: https://download.geofabrik.de/north-america/us/rhode-island-latest.osm.pbf
+          SELECTORS: '[{"countryCode":"US","region":"Rhode Island"}]'
+          GROUPS: '[]'
+          CROSS_ONLY: '0'
+          CITY_INPUT: input/routebound-locations.json
+          OUTPUT_DIR: out
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq
+          bash scripts/build-osrm-shard.sh
+          echo "Input and output sizes:"
+          du -sh "${RUNNER_TEMP}/routebound-us-rhode-island" out 2>/dev/null || true
+          df -h "${RUNNER_TEMP}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: representative-small
+          path: out/*.jsonl
+          if-no-files-found: error
+          retention-days: 3
+
+  test-large-region:
+    needs: test-small-region
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build independent Walking and Driving profiles
+        env:
+          JOB_ID: us-california
+          PBF_URLS: https://download.geofabrik.de/north-america/us/california-latest.osm.pbf
+          SELECTORS: '[{"countryCode":"US","region":"California"}]'
+          GROUPS: '[]'
+          CROSS_ONLY: '0'
+          CITY_INPUT: input/routebound-locations.json
+          OUTPUT_DIR: out
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq
+          bash scripts/build-osrm-shard.sh
+          echo "Input and output sizes:"
+          du -sh "${RUNNER_TEMP}/routebound-us-california" out 2>/dev/null || true
+          df -h "${RUNNER_TEMP}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: representative-large
+          path: out/*.jsonl
+          if-no-files-found: error
+          retention-days: 3
+
+  test-boundary:
+    needs: test-large-region
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build independent cross-boundary Walking and Driving profiles
+        env:
+          JOB_ID: us-california__us-nevada
+          PBF_URLS: https://download.geofabrik.de/north-america/us/california-latest.osm.pbf,https://download.geofabrik.de/north-america/us/nevada-latest.osm.pbf
+          SELECTORS: '[{"countryCode":"US","region":"California"},{"countryCode":"US","region":"Nevada"}]'
+          GROUPS: '[[{"countryCode":"US","region":"California"}],[{"countryCode":"US","region":"Nevada"}]]'
+          CROSS_ONLY: '1'
+          CITY_INPUT: input/routebound-locations.json
+          OUTPUT_DIR: out
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq
+          bash scripts/build-osrm-shard.sh
+          echo "Input and output sizes:"
+          du -sh "${RUNNER_TEMP}/routebound-us-california__us-nevada" out 2>/dev/null || true
+          df -h "${RUNNER_TEMP}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: representative-boundary
+          path: out/*.jsonl
+          if-no-files-found: error
+          retention-days: 3
+

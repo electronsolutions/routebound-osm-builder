@@ -1,0 +1,139 @@
+name: Build Routebound OSM routing network
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  OSM_EXTRACT_DATE: current-Geofabrik-extract
+  ROUTING_VERSION: osrm-sharded-${{ github.run_id }}
+  OSRM_IMAGE: ghcr.io/project-osrm/osrm-backend:latest
+  OSMIUM_IMAGE: ghcr.io/osmcode/osmium-tool:latest
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      regions: ${{ steps.matrix.outputs.regions }}
+      boundaries: ${{ steps.matrix.outputs.boundaries }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: matrix
+        shell: bash
+        run: |
+          echo "regions=$(node scripts/matrix.mjs regions)" >> "$GITHUB_OUTPUT"
+          echo "boundaries=$(node scripts/matrix.mjs boundaries)" >> "$GITHUB_OUTPUT"
+
+  prepare-cities:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate public location input
+        run: |
+          node -e "const x=require('./input/routebound-locations.json'); if (x.length !== 1283) process.exit(1);"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: routebound-cities
+          path: input/routebound-locations.json
+          if-no-files-found: error
+          retention-days: 3
+
+  regional-shards:
+    needs: [discover, prepare-cities]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix: ${{ fromJSON(needs.discover.outputs.regions) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: routebound-cities
+          path: input
+      - name: Build independent Walking and Driving shard profiles
+        env:
+          JOB_ID: ${{ matrix.id }}
+          PBF_URLS: ${{ join(matrix.pbfUrls, ',') }}
+          SELECTORS: ${{ toJSON(matrix.selectors) }}
+          GROUPS: "[]"
+          CROSS_ONLY: "0"
+          CITY_INPUT: input/routebound-locations.json
+          OUTPUT_DIR: out
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq
+          bash scripts/build-osrm-shard.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rb-region-${{ matrix.id }}
+          path: out/*.jsonl
+          if-no-files-found: error
+          retention-days: 3
+
+  boundary-shards:
+    needs: [discover, prepare-cities]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix: ${{ fromJSON(needs.discover.outputs.boundaries) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: routebound-cities
+          path: input
+      - name: Build independent cross-boundary profiles
+        env:
+          JOB_ID: ${{ matrix.id }}
+          PBF_URLS: ${{ join(matrix.pbfUrls, ',') }}
+          SELECTORS: ${{ toJSON(matrix.selectors) }}
+          GROUPS: ${{ toJSON(matrix.groups) }}
+          CROSS_ONLY: "1"
+          CITY_INPUT: input/routebound-locations.json
+          OUTPUT_DIR: out
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq
+          bash scripts/build-osrm-shard.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rb-boundary-${{ matrix.id }}
+          path: out/*.jsonl
+          if-no-files-found: error
+          retention-days: 3
+
+  stitch-and-validate:
+    needs: [regional-shards, boundary-shards]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: routebound-cities
+          path: input
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rb-*
+          path: shard-output
+          merge-multiple: true
+      - name: Stitch compact graph and calculate independent connectivity
+        run: |
+          node scripts/stitch-routebound.mjs \
+            --cities input/routebound-locations.json \
+            --input shard-output \
+            --output out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: routebound-osm-compact
+          path: out/*
+          if-no-files-found: error
+          retention-days: 14
+
+# Production import is deliberately not automatic here. It must use the
+# existing authorized Routebound deployment/import process and must not place
+# Cloudflare or player credentials in this public-data repository.
+

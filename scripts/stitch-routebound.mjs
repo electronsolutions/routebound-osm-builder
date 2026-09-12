@@ -1,0 +1,98 @@
+import fs from "node:fs";
+import path from "node:path";
+
+const args = new Map();
+for (let index = 2; index < process.argv.length; index += 2) {
+  args.set(process.argv[index].replace(/^--/, ""), process.argv[index + 1]);
+}
+const cityPath = args.get("cities") ?? "cities.json";
+const inputDir = args.get("input") ?? "shard-output";
+const outputDir = args.get("output") ?? "out";
+const locations = JSON.parse(fs.readFileSync(cityPath, "utf8"));
+const locationIds = new Set(locations.map((location) => location.id));
+const files = [];
+function walk(directory) {
+  if (!fs.existsSync(directory)) return;
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const full = path.join(directory, entry.name);
+    if (entry.isDirectory()) walk(full);
+    else if (entry.name.endsWith(".jsonl")) files.push(full);
+  }
+}
+walk(inputDir);
+
+const edges = new Map();
+for (const file of files) {
+  for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const edge = JSON.parse(line);
+    if (!["walking", "driving"].includes(edge.profile) || edge.routeSource !== "osm") {
+      throw new Error("invalid profile/source in " + file);
+    }
+    if (!locationIds.has(edge.originLocationId) || !locationIds.has(edge.destinationLocationId)) {
+      throw new Error("edge references unknown location in " + file);
+    }
+    if (!edge.routeGeometry || !Number.isFinite(edge.routedDistanceMiles)) {
+      throw new Error("edge is missing geometry/distance in " + file);
+    }
+    edges.set(edge.profile + ":" + edge.originLocationId + ":" + edge.destinationLocationId, edge);
+  }
+}
+
+function components(profile) {
+  const parent = new Map(locations.map((location) => [location.id, location.id]));
+  const find = (id) => {
+    let root = parent.get(id);
+    while (root !== parent.get(root)) root = parent.get(root);
+    let current = id;
+    while (parent.get(current) !== root) {
+      const next = parent.get(current);
+      parent.set(current, root);
+      current = next;
+    }
+    return root;
+  };
+  const union = (left, right) => {
+    const a = find(left);
+    const b = find(right);
+    if (a !== b) parent.set(a, b);
+  };
+  for (const edge of edges.values()) {
+    if (edge.profile === profile) union(edge.originLocationId, edge.destinationLocationId);
+  }
+  const groups = new Map();
+  for (const location of locations) {
+    const root = find(location.id);
+    groups.set(root, (groups.get(root) ?? 0) + 1);
+  }
+  const sizes = [...groups.values()].sort((a, b) => b - a);
+  return {
+    evaluated: locations.length,
+    edgeCount: [...edges.values()].filter((edge) => edge.profile === profile).length,
+    componentCount: sizes.length,
+    primaryComponentSize: sizes[0] ?? 0,
+    unreachableOrDisconnected: sizes.slice(1).reduce((sum, size) => sum + size, 0)
+  };
+}
+
+fs.mkdirSync(outputDir, { recursive: true });
+const routePath = path.join(outputDir, "routebound-osm-routing.jsonl");
+const output = [...edges.values()].sort((a, b) => a.id.localeCompare(b.id)).map((edge) => JSON.stringify(edge)).join("\n");
+fs.writeFileSync(routePath, output ? output + "\n" : "");
+fs.writeFileSync(path.join(outputDir, "connectivity.json"), JSON.stringify({
+  source: "OpenStreetMap",
+  walking: components("walking"),
+  driving: components("driving")
+}, null, 2) + "\n");
+fs.writeFileSync(path.join(outputDir, "source-manifest.json"), JSON.stringify({
+  source: "OpenStreetMap",
+  attribution: "© OpenStreetMap contributors",
+  license: "ODbL",
+  geometryEncoding: "polyline6",
+  routeFilesRead: files.length,
+  deduplicatedEdgeCount: edges.size,
+  locationCount: locations.length,
+  routingEngine: "OSRM; see per-edge routingVersion and osmExtractDate"
+}, null, 2) + "\n");
+console.log(JSON.stringify({ files: files.length, edges: edges.size, locations: locations.length, outputDir }));
+
