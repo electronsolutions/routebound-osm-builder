@@ -78,7 +78,6 @@ function standardBoundary(leftId, rightId) {
     pbfUrls: [...left.pbfUrls, ...right.pbfUrls]
   };
   if (rightId.startsWith("mx-") && leftId.startsWith("us-")) {
-    boundary.groupCityIds = [left.cityIds ?? [], right.cityIds ?? []];
     boundary.subshardBbox = mexicoById.get(rightId).bbox.join(",");
     boundary.subshardIndexes = [1];
   }
