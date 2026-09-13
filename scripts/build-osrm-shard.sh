@@ -25,10 +25,19 @@ PBF_FILES=()
 for index in "${!URLS[@]}"; do
   url="${URLS[$index]}"
   file="$WORK_DIR/input-${index}.osm.pbf"
-  curl --fail --location --retry 5 --retry-all-errors --continue-at - --output "$file" "$url"
-  if curl --fail --location --retry 3 --output "$file.md5" "${url}.md5"; then
+  resolved_url="$(curl --fail --silent --show-error --location --head --retry 5 --retry-all-errors --output /dev/null --write-out '%{url_effective}' "$url")"
+  test -n "$resolved_url"
+  echo "Resolved OSM extract: $resolved_url"
+  curl --fail --location --retry 5 --retry-all-errors --continue-at - --output "$file" "$resolved_url"
+  if curl --fail --location --retry 3 --output "$file.md5" "${resolved_url}.md5"; then
     expected="$(awk '{print $1}' "$file.md5")"
     actual="$(md5sum "$file" | awk '{print $1}')"
+    if [ "$expected" != "$actual" ]; then
+      echo "Checksum mismatch for $resolved_url; retrying the immutable extract once"
+      rm -f "$file"
+      curl --fail --location --retry 5 --retry-all-errors --output "$file" "$resolved_url"
+      actual="$(md5sum "$file" | awk '{print $1}')"
+    fi
     test "$expected" = "$actual"
   fi
   PBF_FILES+=("$file")
