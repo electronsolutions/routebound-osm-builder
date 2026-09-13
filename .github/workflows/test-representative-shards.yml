@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/test-representative-shards.yml"
       - "scripts/**"
+      - "config/**"
       - "input/routebound-locations.json"
 
 permissions:
@@ -98,6 +99,47 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: representative-boundary
+          path: out/*.jsonl
+          if-no-files-found: error
+          retention-days: 3
+
+  test-mexico-subshards:
+    needs: test-boundary
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: mx-northwest
+            cityIds: '["location-mx-cabo-san-lucas-3985710","location-mx-tijuana-3981609"]'
+            bbox: '-118.5,22.0,-105.0,33.0'
+          - id: mx-central
+            cityIds: '[]'
+            bbox: '-105.0,17.0,-96.0,24.0'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Mexico subshard profiles
+        env:
+          JOB_ID: ${{ matrix.id }}
+          PBF_URLS: https://download.geofabrik.de/north-america/mexico-latest.osm.pbf
+          SELECTORS: '[{"countryCode":"MX"}]'
+          CITY_IDS: ${{ matrix.cityIds }}
+          GROUP_CITY_IDS: '[]'
+          SUBSHARD_BBOX: ${{ matrix.bbox }}
+          SUBSHARD_INDEXES: '0'
+          GROUPS: '[]'
+          CROSS_ONLY: '0'
+          CITY_INPUT: input/routebound-locations.json
+          OUTPUT_DIR: out
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq osmium-tool
+          bash scripts/build-osrm-shard.sh
+          du -sh "${RUNNER_TEMP}/routebound-${JOB_ID}" out 2>/dev/null || true
+          df -h "${RUNNER_TEMP}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: representative-${{ matrix.id }}
           path: out/*.jsonl
           if-no-files-found: error
           retention-days: 3

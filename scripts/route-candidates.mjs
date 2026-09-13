@@ -6,6 +6,8 @@ const outputPath = process.env.OUTPUT;
 const cityPath = process.env.CITY_INPUT ?? "cities.json";
 const selectors = JSON.parse(process.env.SELECTORS ?? "[]");
 const groups = JSON.parse(process.env.GROUPS ?? "[]");
+const cityIds = new Set(JSON.parse(process.env.CITY_IDS ?? "[]"));
+const groupCityIds = JSON.parse(process.env.GROUP_CITY_IDS ?? "[]") ?? [];
 const crossOnly = process.env.CROSS_ONLY === "1";
 const extractDate = process.env.OSM_EXTRACT_DATE ?? "unknown";
 const routingVersion = process.env.ROUTING_VERSION ?? "osrm-unpinned";
@@ -22,6 +24,7 @@ const selectGroup = (group) =>
 const selected = selectors.length
   ? locations.filter((location) => selectors.some((selector) => matches(location, selector)))
   : locations;
+const selectedById = cityIds.size ? selected.filter((location) => cityIds.has(location.id)) : selected;
 
 function milesBetween(a, b) {
   const rad = Math.PI / 180;
@@ -47,11 +50,13 @@ function addCandidates(origins, destinations) {
   }
 }
 
-if (crossOnly && groups.length === 2) {
-  addCandidates(selectGroup(groups[0]), selectGroup(groups[1]));
-  addCandidates(selectGroup(groups[1]), selectGroup(groups[0]));
+if (crossOnly && (groupCityIds.length === 2 || groups.length === 2)) {
+  const first = groupCityIds.length === 2 ? locations.filter((location) => new Set(groupCityIds[0]).has(location.id)) : selectGroup(groups[0]);
+  const second = groupCityIds.length === 2 ? locations.filter((location) => new Set(groupCityIds[1]).has(location.id)) : selectGroup(groups[1]);
+  addCandidates(first, second);
+  addCandidates(second, first);
 } else {
-  addCandidates(selected, selected);
+  addCandidates(selectedById, selectedById);
 }
 
 async function route(origin, destination) {

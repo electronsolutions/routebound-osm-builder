@@ -58,13 +58,17 @@ jobs:
           JOB_ID: ${{ matrix.id }}
           PBF_URLS: ${{ join(matrix.pbfUrls, ',') }}
           SELECTORS: ${{ toJSON(matrix.selectors) }}
+          CITY_IDS: ${{ toJSON(matrix.cityIds) }}
+          GROUP_CITY_IDS: ${{ toJSON(matrix.groupCityIds) }}
+          SUBSHARD_BBOX: ${{ matrix.subshardBbox }}
+          SUBSHARD_INDEXES: ${{ join(matrix.subshardIndexes, ',') }}
           GROUPS: "[]"
           CROSS_ONLY: "0"
           CITY_INPUT: input/routebound-locations.json
           OUTPUT_DIR: out
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl jq
+          sudo apt-get install -y curl jq osmium-tool
           bash scripts/build-osrm-shard.sh
       - uses: actions/upload-artifact@v4
         with:
@@ -91,6 +95,10 @@ jobs:
           JOB_ID: ${{ matrix.id }}
           PBF_URLS: ${{ join(matrix.pbfUrls, ',') }}
           SELECTORS: ${{ toJSON(matrix.selectors) }}
+          CITY_IDS: ${{ toJSON(matrix.cityIds) }}
+          GROUP_CITY_IDS: ${{ toJSON(matrix.groupCityIds) }}
+          SUBSHARD_BBOX: ${{ matrix.subshardBbox }}
+          SUBSHARD_INDEXES: ${{ join(matrix.subshardIndexes, ',') }}
           GROUPS: ${{ toJSON(matrix.groups) }}
           CROSS_ONLY: "1"
           CITY_INPUT: input/routebound-locations.json

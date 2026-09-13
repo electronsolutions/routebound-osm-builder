@@ -5,6 +5,8 @@ set -euo pipefail
 : "${PBF_URLS:?}"
 : "${SELECTORS:?}"
 : "${OUTPUT_DIR:?}"
+SUBSHARD_BBOX="${SUBSHARD_BBOX:-}"
+SUBSHARD_INDEXES="${SUBSHARD_INDEXES:-}"
 
 WORK_DIR="${RUNNER_TEMP}/routebound-${JOB_ID}"
 IMAGE="${OSRM_IMAGE:-ghcr.io/project-osrm/osrm-backend:latest}"
@@ -42,6 +44,18 @@ for index in "${!URLS[@]}"; do
   fi
   PBF_FILES+=("$file")
 done
+
+if [ -n "$SUBSHARD_BBOX" ]; then
+  IFS=',' read -r -a EXTRACT_INDEXES <<< "${SUBSHARD_INDEXES:-0}"
+  for index in "${EXTRACT_INDEXES[@]}"; do
+    source_file="${PBF_FILES[$index]}"
+    extracted_file="$WORK_DIR/input-${index}-subshard.osm.pbf"
+    test -f "$source_file"
+    osmium extract --bbox "$SUBSHARD_BBOX" --strategy complete_ways "$source_file" -o "$extracted_file"
+    rm -f "$source_file" "$source_file.md5"
+    PBF_FILES[$index]="$extracted_file"
+  done
+fi
 
 if [ "${#PBF_FILES[@]}" -eq 1 ]; then
   cp "${PBF_FILES[0]}" "$WORK_DIR/input.osm.pbf"
