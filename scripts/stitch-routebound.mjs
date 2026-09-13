@@ -22,6 +22,7 @@ function walk(directory) {
 walk(inputDir);
 
 const edges = new Map();
+const pairRuns = new Map();
 for (const file of files) {
   for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
     if (!line.trim()) continue;
@@ -35,6 +36,18 @@ for (const file of files) {
     if (!edge.routeGeometry || !Number.isFinite(edge.routedDistanceMiles)) {
       throw new Error("edge is missing geometry/distance in " + file);
     }
+    if (typeof edge.profileRunId !== "string" || !edge.profileRunId.trim()) {
+      throw new Error("edge is missing independent profileRunId in " + file);
+    }
+    const pair = edge.originLocationId + "\0" + edge.destinationLocationId;
+    const runs = pairRuns.get(pair) ?? new Map();
+    for (const [otherProfile, otherRun] of runs) {
+      if (otherProfile !== edge.profile && otherRun === edge.profileRunId) {
+        throw new Error("walking and driving profiles share a profileRunId for " + pair);
+      }
+    }
+    runs.set(edge.profile, edge.profileRunId);
+    pairRuns.set(pair, runs);
     edges.set(edge.profile + ":" + edge.originLocationId + ":" + edge.destinationLocationId, edge);
   }
 }
@@ -77,7 +90,10 @@ function components(profile) {
 
 fs.mkdirSync(outputDir, { recursive: true });
 const routePath = path.join(outputDir, "routebound-osm-routing.jsonl");
-const output = [...edges.values()].sort((a, b) => a.id.localeCompare(b.id)).map((edge) => JSON.stringify(edge)).join("\n");
+const sortedEdges = [...edges.values()].sort((a, b) => a.id.localeCompare(b.id));
+const output = sortedEdges.map((edge) => JSON.stringify(edge)).join("\n");
+const osmExtractDate = sortedEdges.find((edge) => edge.osmExtractDate)?.osmExtractDate ?? process.env.OSM_EXTRACT_DATE ?? "unknown";
+const routingVersion = sortedEdges.find((edge) => edge.routingVersion)?.routingVersion ?? process.env.ROUTING_VERSION ?? "osrm";
 fs.writeFileSync(routePath, output ? output + "\n" : "");
 fs.writeFileSync(path.join(outputDir, "connectivity.json"), JSON.stringify({
   source: "OpenStreetMap",
@@ -86,6 +102,8 @@ fs.writeFileSync(path.join(outputDir, "connectivity.json"), JSON.stringify({
 }, null, 2) + "\n");
 fs.writeFileSync(path.join(outputDir, "source-manifest.json"), JSON.stringify({
   source: "OpenStreetMap",
+  osmExtractDate,
+  routingVersion,
   attribution: "© OpenStreetMap contributors",
   license: "ODbL",
   geometryEncoding: "polyline6",
@@ -94,5 +112,14 @@ fs.writeFileSync(path.join(outputDir, "source-manifest.json"), JSON.stringify({
   locationCount: locations.length,
   routingEngine: "OSRM; see per-edge routingVersion and osmExtractDate"
 }, null, 2) + "\n");
+fs.writeFileSync(path.join(outputDir, "routebound-osm-routing.json"), JSON.stringify({
+  source: "OpenStreetMap",
+  osmExtractDate,
+  routingVersion,
+  routes: sortedEdges,
+  connectivity: {
+    walking: components("walking"),
+    driving: components("driving")
+  }
+}, null, 2) + "\n");
 console.log(JSON.stringify({ files: files.length, edges: edges.size, locations: locations.length, outputDir }));
-

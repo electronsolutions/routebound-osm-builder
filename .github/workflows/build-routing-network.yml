@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 env:
-  OSM_EXTRACT_DATE: current-Geofabrik-extract
+  OSM_EXTRACT_DATE: 2026-09-11
   ROUTING_VERSION: osrm-sharded-${{ github.run_id }}
   OSRM_IMAGE: ghcr.io/project-osrm/osrm-backend:latest
   OSMIUM_IMAGE: ghcr.io/osmcode/osmium-tool:latest
@@ -136,4 +136,3 @@ jobs:
 # Production import is deliberately not automatic here. It must use the
 # existing authorized Routebound deployment/import process and must not place
 # Cloudflare or player credentials in this public-data repository.
-

@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 env:
-  OSM_EXTRACT_DATE: current-Geofabrik-extract
+  OSM_EXTRACT_DATE: 2026-09-11
   ROUTING_VERSION: osrm-representative-${{ github.run_id }}
   OSRM_IMAGE: ghcr.io/project-osrm/osrm-backend:latest
   OSMIUM_IMAGE: ghcr.io/osmcode/osmium-tool:latest
@@ -101,4 +101,3 @@ jobs:
           path: out/*.jsonl
           if-no-files-found: error
           retention-days: 3
-
