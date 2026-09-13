@@ -3,7 +3,8 @@
   {"id":"mx-north","label":"Mexico North","bbox":[-111.0,24.0,-99.0,33.0]},
   {"id":"mx-northeast","label":"Mexico Northeast","bbox":[-101.5,21.0,-86.0,31.5]},
   {"id":"mx-west","label":"Mexico West","bbox":[-111.0,17.5,-101.0,25.5]},
-  {"id":"mx-central","label":"Mexico Central","bbox":[-105.0,17.0,-96.0,24.0]},
+  {"id":"mx-central-west","label":"Mexico Central West","bbox":[-105.0,17.0,-100.5,24.0]},
+  {"id":"mx-central-east","label":"Mexico Central East","bbox":[-100.5,17.0,-96.0,24.0]},
   {"id":"mx-gulf","label":"Mexico Gulf","bbox":[-100.5,17.0,-86.0,25.5]},
   {"id":"mx-south","label":"Mexico South","bbox":[-106.0,13.5,-91.0,20.8]},
   {"id":"mx-southeast","label":"Mexico Southeast","bbox":[-94.0,14.0,-85.0,23.5]}

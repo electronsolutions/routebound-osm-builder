@@ -102,8 +102,9 @@ for (const [leftId, rightId] of boundaryPairs) {
 
 const mexicoNeighbors = [
   ["mx-northwest", "mx-north"], ["mx-northwest", "mx-west"], ["mx-north", "mx-northeast"],
-  ["mx-north", "mx-central"], ["mx-northeast", "mx-gulf"], ["mx-west", "mx-central"],
-  ["mx-west", "mx-south"], ["mx-central", "mx-gulf"], ["mx-central", "mx-south"],
+  ["mx-north", "mx-central-west"], ["mx-north", "mx-central-east"], ["mx-northeast", "mx-gulf"],
+  ["mx-west", "mx-central-west"], ["mx-west", "mx-south"], ["mx-central-west", "mx-central-east"],
+  ["mx-central-east", "mx-gulf"], ["mx-central-west", "mx-south"], ["mx-central-east", "mx-south"],
   ["mx-gulf", "mx-southeast"], ["mx-south", "mx-southeast"]
 ];
 for (const [leftId, rightId] of mexicoNeighbors) {
@@ -116,5 +117,5 @@ for (const [leftId, rightId] of mexicoNeighbors) {
 
 if (mode === "regions") process.stdout.write(JSON.stringify({ include: regions }));
 else if (mode === "boundaries") process.stdout.write(JSON.stringify({ include: expandedBoundaries }));
-else if (mode === "mexico-tests") process.stdout.write(JSON.stringify({ include: mexicoRegions.filter((region) => ["mx-northwest", "mx-central"].includes(region.id)) }));
+else if (mode === "mexico-tests") process.stdout.write(JSON.stringify({ include: mexicoRegions.filter((region) => ["mx-northwest", "mx-central-west", "mx-central-east"].includes(region.id)) }));
 else throw new Error("usage: node scripts/matrix.mjs regions|boundaries|mexico-tests");

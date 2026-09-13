@@ -12,6 +12,7 @@ WORK_DIR="${RUNNER_TEMP}/routebound-${JOB_ID}"
 IMAGE="${OSRM_IMAGE:-ghcr.io/project-osrm/osrm-backend:latest}"
 OSMIUM_IMAGE="${OSMIUM_IMAGE:-ghcr.io/osmcode/osmium-tool:latest}"
 FOOT_URL="${OSRM_FOOT_URL:-https://raw.githubusercontent.com/Project-OSRM/osrm-backend/master/profiles/foot.lua}"
+STARTED_AT="$(date +%s)"
 mkdir -p "$WORK_DIR" "$OUTPUT_DIR"
 
 free_kb() {
@@ -45,6 +46,12 @@ for index in "${!URLS[@]}"; do
   PBF_FILES+=("$file")
 done
 
+echo "Remote source PBF sizes:"
+for file in "${PBF_FILES[@]}"; do
+  echo "  $(basename "$file"): $(stat -c '%s' "$file") bytes"
+done
+df -B1 "$WORK_DIR" | awk 'NR==2 {print "Remote disk after PBF download: " $4 " bytes free"}'
+
 if [ -n "$SUBSHARD_BBOX" ]; then
   IFS=',' read -r -a EXTRACT_INDEXES <<< "${SUBSHARD_INDEXES:-0}"
   for index in "${EXTRACT_INDEXES[@]}"; do
@@ -56,6 +63,12 @@ if [ -n "$SUBSHARD_BBOX" ]; then
     PBF_FILES[$index]="$extracted_file"
   done
 fi
+
+echo "Remote routed-input PBF sizes:"
+for file in "${PBF_FILES[@]}"; do
+  echo "  $(basename "$file"): $(stat -c '%s' "$file") bytes"
+done
+df -B1 "$WORK_DIR" | awk 'NR==2 {print "Remote disk after subshard extraction: " $4 " bytes free"}'
 
 if [ "${#PBF_FILES[@]}" -eq 1 ]; then
   cp "${PBF_FILES[0]}" "$WORK_DIR/input.osm.pbf"
@@ -93,6 +106,8 @@ build_profile() {
     CITY_INPUT="${CITY_INPUT}" SELECTORS="${SELECTORS}" GROUPS="${GROUPS:-[]}" CROSS_ONLY="${CROSS_ONLY:-0}" \
     OSM_EXTRACT_DATE="${OSM_EXTRACT_DATE:-unknown}" ROUTING_VERSION="${ROUTING_VERSION:-osrm}" \
     node scripts/route-candidates.mjs
+  echo "${profile} compact output: $(stat -c '%s' "${OUTPUT_DIR}/${JOB_ID}-${profile}.jsonl") bytes"
+  df -B1 "$WORK_DIR" | awk -v profile="$profile" 'NR==2 {print "Remote disk after " profile " profile: " $4 " bytes free"}'
   docker rm -f "$container" >/dev/null 2>&1 || true
   rm -f "${base}.osm.pbf" "${base}.osrm" "${base}.osrm."*
 }
@@ -104,4 +119,5 @@ echo "Remote build metrics:"
 du -sh "$WORK_DIR" "$OUTPUT_DIR" 2>/dev/null || true
 df -h "$WORK_DIR"
 free -h || true
+echo "Remote runtime: $(( $(date +%s) - STARTED_AT )) seconds"
 rm -rf "$WORK_DIR"

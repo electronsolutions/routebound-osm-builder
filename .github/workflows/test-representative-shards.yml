@@ -113,9 +113,12 @@ jobs:
           - id: mx-northwest
             cityIds: '["location-mx-cabo-san-lucas-3985710","location-mx-tijuana-3981609"]'
             bbox: '-118.5,22.0,-105.0,33.0'
-          - id: mx-central
+          - id: mx-central-west
             cityIds: '[]'
-            bbox: '-105.0,17.0,-96.0,24.0'
+            bbox: '-105.0,17.0,-100.5,24.0'
+          - id: mx-central-east
+            cityIds: '[]'
+            bbox: '-100.5,17.0,-96.0,24.0'
     steps:
       - uses: actions/checkout@v4
       - name: Build Mexico subshard profiles
