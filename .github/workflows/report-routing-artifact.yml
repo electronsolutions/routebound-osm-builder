@@ -1,0 +1,28 @@
+name: Report Routebound compact artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: GitHub Actions run ID containing routebound-osm-compact-rerun
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: routebound-osm-compact-rerun
+          path: routing-artifact
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+      - name: Report manifest and independent connectivity
+        run: |
+          node -e 'const fs=require("node:fs"); const m=JSON.parse(fs.readFileSync("routing-artifact/source-manifest.json")); const c=JSON.parse(fs.readFileSync("routing-artifact/connectivity.json")); console.log(JSON.stringify({manifest:m,connectivity:c}));'
