@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { once } from "node:events";
 import path from "node:path";
 
 const args = new Map();
@@ -91,15 +92,35 @@ function components(profile) {
 fs.mkdirSync(outputDir, { recursive: true });
 const routePath = path.join(outputDir, "routebound-osm-routing.jsonl");
 const sortedEdges = [...edges.values()].sort((a, b) => a.id.localeCompare(b.id));
-const output = sortedEdges.map((edge) => JSON.stringify(edge)).join("\n");
 const osmExtractDate = sortedEdges.find((edge) => edge.osmExtractDate)?.osmExtractDate ?? process.env.OSM_EXTRACT_DATE ?? "unknown";
 const routingVersion = sortedEdges.find((edge) => edge.routingVersion)?.routingVersion ?? process.env.ROUTING_VERSION ?? "osrm";
-fs.writeFileSync(routePath, output ? output + "\n" : "");
-fs.writeFileSync(path.join(outputDir, "connectivity.json"), JSON.stringify({
+const connectivity = {
   source: "OpenStreetMap",
   walking: components("walking"),
   driving: components("driving")
-}, null, 2) + "\n");
+};
+
+async function writeStream(stream, value) {
+  if (!stream.write(value)) await once(stream, "drain");
+}
+
+async function writeOutputs() {
+  const jsonlStream = fs.createWriteStream(routePath, { encoding: "utf8" });
+  const jsonStream = fs.createWriteStream(path.join(outputDir, "routebound-osm-routing.json"), { encoding: "utf8" });
+  await writeStream(jsonStream, `{"source":${JSON.stringify("OpenStreetMap")},"osmExtractDate":${JSON.stringify(osmExtractDate)},"routingVersion":${JSON.stringify(routingVersion)},"routes":[`);
+  for (const edge of sortedEdges) {
+    const serialized = JSON.stringify(edge);
+    await writeStream(jsonlStream, serialized + "\n");
+    await writeStream(jsonStream, (edge === sortedEdges[0] ? "" : ",") + serialized);
+  }
+  await writeStream(jsonStream, `],"connectivity":${JSON.stringify(connectivity)}}\n`);
+  await Promise.all([
+    new Promise((resolve, reject) => { jsonlStream.end(resolve); jsonlStream.on("error", reject); }),
+    new Promise((resolve, reject) => { jsonStream.end(resolve); jsonStream.on("error", reject); })
+  ]);
+}
+
+fs.writeFileSync(path.join(outputDir, "connectivity.json"), JSON.stringify(connectivity, null, 2) + "\n");
 fs.writeFileSync(path.join(outputDir, "source-manifest.json"), JSON.stringify({
   source: "OpenStreetMap",
   osmExtractDate,
@@ -112,14 +133,5 @@ fs.writeFileSync(path.join(outputDir, "source-manifest.json"), JSON.stringify({
   locationCount: locations.length,
   routingEngine: "OSRM; see per-edge routingVersion and osmExtractDate"
 }, null, 2) + "\n");
-fs.writeFileSync(path.join(outputDir, "routebound-osm-routing.json"), JSON.stringify({
-  source: "OpenStreetMap",
-  osmExtractDate,
-  routingVersion,
-  routes: sortedEdges,
-  connectivity: {
-    walking: components("walking"),
-    driving: components("driving")
-  }
-}, null, 2) + "\n");
+await writeOutputs();
 console.log(JSON.stringify({ files: files.length, edges: edges.size, locations: locations.length, outputDir }));
