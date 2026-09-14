@@ -24,6 +24,7 @@ walk(inputDir);
 
 const edges = new Map();
 const pairRuns = new Map();
+let droppedInvalidEdges = 0;
 for (const file of files) {
   for (const line of fs.readFileSync(file, "utf8").split(/\r?\n/)) {
     if (!line.trim()) continue;
@@ -34,8 +35,9 @@ for (const file of files) {
     if (!locationIds.has(edge.originLocationId) || !locationIds.has(edge.destinationLocationId)) {
       throw new Error("edge references unknown location in " + file);
     }
-    if (!edge.routeGeometry || !Number.isFinite(edge.routedDistanceMiles)) {
-      throw new Error("edge is missing geometry/distance in " + file);
+    if (!edge.routeGeometry || !Number.isFinite(edge.routedDistanceMiles) || edge.routedDistanceMiles <= 0) {
+      droppedInvalidEdges += 1;
+      continue;
     }
     if (typeof edge.profileRunId !== "string" || !edge.profileRunId.trim()) {
       throw new Error("edge is missing independent profileRunId in " + file);
@@ -130,8 +132,9 @@ fs.writeFileSync(path.join(outputDir, "source-manifest.json"), JSON.stringify({
   geometryEncoding: "polyline6",
   routeFilesRead: files.length,
   deduplicatedEdgeCount: edges.size,
+  droppedInvalidEdgeCount: droppedInvalidEdges,
   locationCount: locations.length,
   routingEngine: "OSRM; see per-edge routingVersion and osmExtractDate"
 }, null, 2) + "\n");
 await writeOutputs();
-console.log(JSON.stringify({ files: files.length, edges: edges.size, locations: locations.length, outputDir }));
+console.log(JSON.stringify({ files: files.length, edges: edges.size, droppedInvalidEdges, locations: locations.length, outputDir }));

@@ -68,7 +68,7 @@ async function route(origin, destination) {
       if (!response.ok) continue;
       const body = await response.json();
       const routed = body.routes?.[0];
-      if (!routed || body.code !== "Ok" || !Number.isFinite(routed.distance) || !routed.geometry) return null;
+      if (!routed || body.code !== "Ok" || !Number.isFinite(routed.distance) || routed.distance <= 0 || !routed.geometry) return null;
       return { routed, waypoints: body.waypoints ?? [] };
     } catch {
       if (attempt === 2) return null;
@@ -87,12 +87,14 @@ for (const { origin, destination } of pairs.values()) {
     const [longitude, latitude] = waypoint?.location ?? [location.longitude, location.latitude];
     return { latitude, longitude, name: waypoint?.name ?? location.name };
   };
+  const routedDistanceMiles = Number((routed.distance / 1609.344).toFixed(3));
+  if (!Number.isFinite(routedDistanceMiles) || routedDistanceMiles <= 0) continue;
   lines.push(JSON.stringify({
     id: profile + ":" + origin.id + ":" + destination.id,
     originLocationId: origin.id,
     destinationLocationId: destination.id,
     profile,
-    routedDistanceMiles: Number((routed.distance / 1609.344).toFixed(3)),
+    routedDistanceMiles,
     routeGeometry: routed.geometry,
     accessRules: JSON.stringify({ profile, engine: "osrm", independentProfileRun: true, source: "OpenStreetMap" }),
     originSnap: snap(originWaypoint, origin),
