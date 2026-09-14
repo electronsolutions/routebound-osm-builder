@@ -1,0 +1,46 @@
+name: Stitch existing Routebound OSM artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: GitHub Actions run ID containing the completed shard artifacts
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  stitch-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: routebound-cities
+          path: input
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rb-*
+          path: shard-output
+          merge-multiple: true
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+      - name: Stitch compact graph and calculate independent connectivity
+        env:
+          NODE_OPTIONS: --max-old-space-size=12288
+        run: |
+          node scripts/stitch-routebound.mjs \
+            --cities input/routebound-locations.json \
+            --input shard-output \
+            --output out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: routebound-osm-compact-rerun
+          path: out/*
+          if-no-files-found: error
+          retention-days: 14

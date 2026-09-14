@@ -129,6 +129,8 @@ jobs:
           path: shard-output
           merge-multiple: true
       - name: Stitch compact graph and calculate independent connectivity
+        env:
+          NODE_OPTIONS: --max-old-space-size=12288
         run: |
           node scripts/stitch-routebound.mjs \
             --cities input/routebound-locations.json \
