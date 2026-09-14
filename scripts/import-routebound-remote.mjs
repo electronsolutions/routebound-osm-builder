@@ -16,6 +16,19 @@ let inserted = 0;
 let batches = 0;
 let walking = 0;
 let driving = 0;
+let lineNumber = 0;
+
+function validateRoute(route) {
+  const id = typeof route.id === "string" ? route.id : "";
+  const origin = typeof route.originLocationId === "string" ? route.originLocationId : "";
+  const destination = typeof route.destinationLocationId === "string" ? route.destinationLocationId : "";
+  const profile = route.profile === "walking" || route.profile === "driving" ? route.profile : null;
+  const distance = Number(route.routedDistanceMiles);
+  const geometry = typeof route.routeGeometry === "string" ? route.routeGeometry : "";
+  if (!id || !origin || !destination || origin === destination || !profile || !Number.isFinite(distance) || distance <= 0 || !geometry) {
+    throw new Error(`invalid route profile at JSONL line ${lineNumber}`);
+  }
+}
 
 async function sendBatch(routes) {
   if (!routes.length) return;
@@ -31,7 +44,7 @@ async function sendBatch(routes) {
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body.ok !== true) {
-    throw new Error(`import batch ${batches + 1} failed with HTTP ${response.status}`);
+    throw new Error(`import batch ${batches + 1} failed with HTTP ${response.status}: ${JSON.stringify(body).slice(0, 500)}`);
   }
   sent += body.received ?? routes.length;
   inserted += body.inserted ?? 0;
@@ -41,8 +54,10 @@ async function sendBatch(routes) {
 const input = readline.createInterface({ input: fs.createReadStream(routePath), crlfDelay: Infinity });
 let batch = [];
 for await (const line of input) {
+  lineNumber += 1;
   if (!line.trim()) continue;
   const route = JSON.parse(line);
+  validateRoute(route);
   batch.push(route);
   if (route.profile === "walking") walking += 1;
   if (route.profile === "driving") driving += 1;
