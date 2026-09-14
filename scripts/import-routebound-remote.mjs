@@ -26,7 +26,15 @@ function validateRoute(route) {
   const distance = Number(route.routedDistanceMiles);
   const geometry = typeof route.routeGeometry === "string" ? route.routeGeometry : "";
   if (!id || !origin || !destination || origin === destination || !profile || !Number.isFinite(distance) || distance <= 0 || !geometry) {
-    throw new Error(`invalid route profile at JSONL line ${lineNumber}`);
+    throw new Error(`invalid route profile at JSONL line ${lineNumber}: ${JSON.stringify({
+      id,
+      origin,
+      destination,
+      profile,
+      distance,
+      geometryLength: geometry.length,
+      sameLocation: origin === destination
+    })}`);
   }
 }
 
